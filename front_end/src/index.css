@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* Ngăn giật layout khi modal/slide-over bật tắt scrollbar */
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  /* Viền focus thống nhất toàn hệ thống, phục vụ điều hướng bằng bàn phím */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-1;
+  }
+}
+
+@layer components {
+  /* Nhãn bắt buộc: dùng chung cho mọi field có required */
+  .required-mark::after {
+    content: '*';
+    @apply ml-0.5 text-red-600;
+  }
+}
