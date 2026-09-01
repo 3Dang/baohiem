@@ -1,4 +1,8 @@
 import axios from 'axios';
+import demoAdapter from './demo/adapter';
+
+/** Chế độ demo: dữ liệu giả ngay trong trình duyệt, không cần backend. */
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 /**
  * Client HTTP dùng chung cho toàn bộ ứng dụng.
@@ -15,6 +19,11 @@ const http = axios.create({
   // Bật để backend có thể chuyển sang cookie httpOnly mà không sửa client
   withCredentials: true,
 });
+
+// Chế độ demo thay tầng vận chuyển của axios bằng adapter dữ liệu giả, nhờ đó
+// mã nghiệp vụ vẫn gọi API như thường. Khi API thật sẵn sàng: đặt
+// VITE_DEMO_MODE=false, rồi xoá thư mục `lib/demo` cùng hai dòng liên quan ở đây.
+if (DEMO_MODE) http.defaults.adapter = demoAdapter;
 
 const TOKEN_KEY = 'baohiem.token';
 
@@ -81,6 +90,8 @@ export async function downloadFile(url, { params, fallbackName } = {}) {
 
   const response = await axios.get(url, {
     baseURL: http.defaults.baseURL,
+    // Dùng lại adapter của `http` để chế độ demo cũng tải được tệp
+    adapter: http.defaults.adapter,
     withCredentials: true,
     params,
     responseType: 'blob',

@@ -4,9 +4,12 @@ import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
 import { CheckboxField, PasswordField, TextField } from '@/components/ui/Field';
 import { useAuth } from './AuthContext';
-import { ApiError } from '@/lib/http';
+import { ApiError, DEMO_MODE } from '@/lib/http';
 
 const APP_NAME = import.meta.env.VITE_APP_NAME || 'BẢO HIỂM';
+
+/** Tài khoản dùng thử, chỉ hiện khi chạy chế độ demo. */
+const DEMO_HINT = { email: 'admin@baohiem.vn', password: 'admin123' };
 
 /**
  * Trang đăng nhập.
@@ -19,7 +22,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [form, setForm] = useState({ email: '', password: '', remember: false });
+  const [form, setForm] = useState(() =>
+    // Điền sẵn tài khoản demo để bấm Đăng nhập là vào được ngay
+    DEMO_MODE
+      ? { ...DEMO_HINT, remember: false }
+      : { email: '', password: '', remember: false },
+  );
   const [fieldErrors, setFieldErrors] = useState({});
   const [message, setMessage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -69,6 +77,13 @@ export default function LoginPage() {
             Đăng nhập vào tài khoản của bạn
           </h1>
         </header>
+
+        {DEMO_MODE && (
+          <Alert tone="info" className="mb-5" title="Chế độ demo — dữ liệu giả">
+            Đăng nhập bằng <strong>{DEMO_HINT.email}</strong> / <strong>{DEMO_HINT.password}</strong>
+            . Tắt bằng cách đặt <code>VITE_DEMO_MODE=false</code> trong <code>.env</code>.
+          </Alert>
+        )}
 
         {message && <Alert className="mb-5">{message}</Alert>}
 

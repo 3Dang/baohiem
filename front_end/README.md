@@ -19,11 +19,32 @@ nộp tiền, danh mục hành chính, kê khai D03/D05/AR và báo cáo.
 
 ```bash
 npm install
-cp .env.example .env      # sửa VITE_PROXY_TARGET trỏ về backend
+cp .env.example .env
 npm run dev               # http://localhost:5173
 ```
 
 Các lệnh khác: `npm run build` (đóng gói vào `dist/`), `npm run preview`, `npm run lint`.
+
+## Chế độ demo (chưa có backend)
+
+Mặc định `.env.example` bật `VITE_DEMO_MODE=true`: một adapter axios trả dữ liệu
+giả ngay trong trình duyệt, nên xem được toàn bộ giao diện mà không cần API.
+
+Tài khoản dùng thử — trang đăng nhập điền sẵn, chỉ cần bấm nút:
+
+```
+admin@baohiem.vn / admin123
+```
+
+Dữ liệu giả nằm ở [src/lib/demo/](src/lib/demo/) và **chỉ được nạp khi biến này bật**.
+Khi API thật sẵn sàng: đặt `VITE_DEMO_MODE=false`, trỏ `VITE_PROXY_TARGET` về backend
+rồi khởi động lại dev server. Mã nghiệp vụ không thay đổi dòng nào vì adapter chỉ
+thay tầng vận chuyển của axios. Muốn dọn hẳn thì xoá thư mục `src/lib/demo/` cùng
+hai dòng tham chiếu trong [src/lib/http.js](src/lib/http.js).
+
+Giới hạn cần biết: adapter lọc tìm kiếm trong phạm vi trang hiện tại (backend thật
+lọc toàn bảng rồi mới phân trang), và dữ liệu sinh lại mỗi lần tải trang nên
+thao tác sửa/xoá không được lưu.
 
 ## Cấu trúc mã nguồn
 
@@ -41,7 +62,9 @@ src/
 │  ├─ declarations/        # nhập / xuất D03, D05, AR
 │  ├─ reports/             # báo cáo theo kỳ
 │  └─ …
-└─ lib/                    # http, endpoints, format, hooks
+└─ lib/
+   ├─ demo/                # dữ liệu giả cho chế độ demo (xoá được)
+   └─ …                    # http, endpoints, format, hooks
 ```
 
 Nguyên tắc: **`components/` không biết gì về nghiệp vụ**, `features/` mới chứa
