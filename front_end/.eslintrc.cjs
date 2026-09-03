@@ -10,4 +10,11 @@ module.exports = {
     // Props được kiểm bằng JSDoc thay vì propTypes
     'react/prop-types': 'off',
   },
+  overrides: [
+    {
+      // Script kiểm tra chạy bằng Node, không phải trong trình duyệt
+      files: ['scripts/**/*.mjs'],
+      env: { browser: false, node: true },
+    },
+  ],
 };

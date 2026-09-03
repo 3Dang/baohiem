@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { Link } from 'react-router-dom';
 import Spinner from './Spinner';
 
 const VARIANTS = {
@@ -18,32 +19,42 @@ const SIZES = {
 /**
  * Nút dùng chung. Khi `loading` bật thì tự disable để chặn double-submit.
  *
+ * Có `to` thì render thành <Link> nhưng giữ nguyên hình dáng nút: nhiều hành
+ * động ở đầu trang thực chất chỉ là điều hướng, không phải gọi API.
+ *
  * @param {{ variant?: keyof typeof VARIANTS, size?: keyof typeof SIZES,
- *           loading?: boolean, fullWidth?: boolean }} props
+ *           loading?: boolean, fullWidth?: boolean, to?: string }} props
  */
 export default function Button({
   variant = 'primary',
   size = 'md',
   loading = false,
   fullWidth = false,
+  to,
   disabled,
   className,
   children,
   ...rest
 }) {
+  const shared = clsx(
+    'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors',
+    'disabled:cursor-not-allowed',
+    VARIANTS[variant],
+    SIZES[size],
+    fullWidth && 'w-full',
+    className,
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className={shared} {...rest}>
+        {children}
+      </Link>
+    );
+  }
+
   return (
-    <button
-      className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors',
-        'disabled:cursor-not-allowed',
-        VARIANTS[variant],
-        SIZES[size],
-        fullWidth && 'w-full',
-        className,
-      )}
-      disabled={disabled || loading}
-      {...rest}
-    >
+    <button className={shared} disabled={disabled || loading} {...rest}>
       {loading && <Spinner className="h-4 w-4" />}
       {children}
     </button>

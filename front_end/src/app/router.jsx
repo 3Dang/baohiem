@@ -4,15 +4,22 @@ import ProtectedRoute from '@/features/auth/ProtectedRoute';
 import LoginPage from '@/features/auth/LoginPage';
 import DashboardPage from '@/features/dashboard/DashboardPage';
 import CatalogPage, { CATALOG_TYPES } from '@/features/catalog/CatalogPage';
-import SettingsPage from '@/features/settings/SettingsPage';
-import ImportPage from '@/features/declarations/ImportPage';
-import ExportPage from '@/features/declarations/ExportPage';
+import SettingsListPage from '@/features/settings/SettingsListPage';
+import SystemSettingsPage from '@/features/settings/SystemSettingsPage';
 import ReportPage from '@/features/reports/ReportPage';
+import SummaryReportPage from '@/features/reports/SummaryReportPage';
 import NotificationsPage from '@/features/notifications/NotificationsPage';
 import SearchPage from '@/features/search/SearchPage';
 import NotFoundPage from '@/features/misc/NotFoundPage';
 import { AuditLogsPage, SystemLogsPage } from '@/features/logs/pages';
-import { endpoints } from '@/lib/endpoints';
+import {
+  ARExportPage,
+  ARImportPage,
+  D03ExportPage,
+  D03ImportPage,
+  D05ExportPage,
+  D05ImportPage,
+} from '@/features/declarations/pages';
 import {
   AgentsPage,
   BaseSalaryPage,
@@ -21,6 +28,7 @@ import {
   InsuranceReceiptsPage,
   PaymentsPage,
   PermissionsPage,
+  ReceiptBooksPage,
   ReceiptsPage,
   RolesPage,
 } from '@/features/business/pages';
@@ -31,69 +39,17 @@ const CATALOG_ROUTES = CATALOG_TYPES.map((type) => ({
   element: <CatalogPage type={type} />,
 }));
 
-/** Nhập/xuất hồ sơ kê khai: chỉ khác endpoint và nhãn. */
+/**
+ * Nhập/xuất hồ sơ kê khai. Mỗi mẫu biểu có hai trang danh sách riêng: trang
+ * nhập để tạo và sửa dữ liệu, trang xuất để lọc rồi kết xuất gửi cơ quan BHXH.
+ */
 const DECLARATION_ROUTES = [
-  {
-    path: 'declarations/d03/import',
-    element: (
-      <ImportPage
-        title="Nhập D03"
-        description="Nhập danh sách người tham gia BHYT từ tệp Excel mẫu D03-TS."
-        endpoint={endpoints.declarations.d03Import}
-      />
-    ),
-  },
-  {
-    path: 'declarations/d03/export',
-    element: (
-      <ExportPage
-        title="Xuất D03"
-        description="Kết xuất hồ sơ D03-TS để gửi cơ quan BHXH."
-        endpoint={endpoints.declarations.d03Export}
-        fileBaseName="D03"
-      />
-    ),
-  },
-  {
-    path: 'declarations/ar/import',
-    element: (
-      <ImportPage
-        title="Nhập AR"
-        description="Nhập dữ liệu điều chỉnh (AR) từ tệp Excel."
-        endpoint={endpoints.declarations.arImport}
-      />
-    ),
-  },
-  {
-    path: 'declarations/ar/export',
-    element: (
-      <ExportPage
-        title="Xuất AR"
-        endpoint={endpoints.declarations.arExport}
-        fileBaseName="AR"
-      />
-    ),
-  },
-  {
-    path: 'declarations/d05/import',
-    element: (
-      <ImportPage
-        title="Nhập D05"
-        description="Nhập danh sách tham gia BHXH tự nguyện theo mẫu D05-TS."
-        endpoint={endpoints.declarations.d05Import}
-      />
-    ),
-  },
-  {
-    path: 'declarations/d05/export',
-    element: (
-      <ExportPage
-        title="Xuất D05"
-        endpoint={endpoints.declarations.d05Export}
-        fileBaseName="D05"
-      />
-    ),
-  },
+  { path: 'declarations/d03/import', element: <D03ImportPage /> },
+  { path: 'declarations/d03/export', element: <D03ExportPage /> },
+  { path: 'declarations/ar/import', element: <ARImportPage /> },
+  { path: 'declarations/ar/export', element: <ARExportPage /> },
+  { path: 'declarations/d05/import', element: <D05ImportPage /> },
+  { path: 'declarations/d05/export', element: <D05ExportPage /> },
 ];
 
 /** Báo cáo theo loại hồ sơ. */
@@ -101,16 +57,8 @@ const REPORT_ROUTES = [
   { path: 'reports/d03', element: <ReportPage title="Báo cáo D03 - BHYT" type="d03" /> },
   { path: 'reports/ar', element: <ReportPage title="Báo cáo AR - BHYT" type="ar" /> },
   { path: 'reports/d05', element: <ReportPage title="Báo cáo D05 - BHXH" type="d05" /> },
-  {
-    path: 'reports/summary',
-    element: (
-      <ReportPage
-        title="Báo cáo tổng hợp"
-        description="Tổng hợp số thu theo đại lý trong kỳ."
-        type="summary"
-      />
-    ),
-  },
+  // Báo cáo tổng hợp có hai bảng và bộ lọc riêng nên là trang riêng
+  { path: 'reports/summary', element: <SummaryReportPage /> },
 ];
 
 export const router = createBrowserRouter([
@@ -130,6 +78,7 @@ export const router = createBrowserRouter([
           { path: 'payments', element: <PaymentsPage /> },
           { path: 'receipts', element: <ReceiptsPage /> },
           { path: 'e-receipts', element: <EReceiptsPage /> },
+          { path: 'receipt-books', element: <ReceiptBooksPage /> },
           { path: 'permissions', element: <PermissionsPage /> },
           { path: 'roles', element: <RolesPage /> },
           { path: 'agents', element: <AgentsPage /> },
@@ -139,8 +88,9 @@ export const router = createBrowserRouter([
           ...DECLARATION_ROUTES,
           ...REPORT_ROUTES,
 
-          { path: 'settings', element: <SettingsPage title="Cài đặt" /> },
-          { path: 'system-settings', element: <SettingsPage /> },
+          // "Cài đặt" là tham số tính toán; "Cài đặt hệ thống" là tham số vận hành
+          { path: 'settings', element: <SettingsListPage /> },
+          { path: 'system-settings', element: <SystemSettingsPage /> },
           { path: 'system-logs', element: <SystemLogsPage /> },
           { path: 'audit-logs', element: <AuditLogsPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
