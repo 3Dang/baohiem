@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext .js,.jsx"
+    "lint": "eslint src scripts --ext .js,.jsx,.mjs",
+    "check:demo": "node --import ./scripts/register.mjs scripts/check-demo.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.56.2",

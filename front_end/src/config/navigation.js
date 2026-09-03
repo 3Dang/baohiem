@@ -12,7 +12,12 @@ export const navigation = [
     id: 'main',
     items: [
       { to: '/', label: 'Bảng điều khiển', icon: 'dashboard' },
-      { to: '/base-salary', label: 'Base salary', icon: 'coin', permission: 'base-salary.view' },
+      {
+        to: '/base-salary',
+        label: 'Mức lương cơ sở',
+        icon: 'coin',
+        permission: 'base-salary.view',
+      },
       {
         to: '/insurance-receipts',
         label: 'Biên lai bảo hiểm',
@@ -27,17 +32,28 @@ export const navigation = [
     items: [
       { to: '/payments', label: 'Quản lý nộp tiền', icon: 'wallet', permission: 'payment.view' },
       { to: '/receipts', label: 'Biên lai', icon: 'receipt', permission: 'receipt.view' },
-      { to: '/permissions', label: 'Quản lý quyền', icon: 'users', permission: 'permission.view' },
+      {
+        to: '/receipt-books',
+        label: 'Quản lý quyển',
+        icon: 'archive',
+        permission: 'receipt-book.view',
+      },
     ],
   },
   {
     id: 'catalog',
     label: 'Danh mục',
     items: [
-      { to: '/settings', label: 'Cài đặt', icon: 'cog', permission: 'setting.view' },
+      {
+        to: '/settings',
+        label: 'Cài đặt',
+        icon: 'cog',
+        countKey: 'settings',
+        permission: 'setting.view',
+      },
       {
         to: '/catalog/provinces',
-        label: 'Danh mục tỉnh/thành',
+        label: 'Danh mục tỉnh/thành phố',
         icon: 'building',
         countKey: 'provinces',
       },
@@ -90,7 +106,10 @@ export const navigation = [
   {
     id: 'shield',
     label: 'Phân quyền',
-    items: [{ to: '/roles', label: 'Vai trò', icon: 'shield', countKey: 'roles' }],
+    items: [
+      { to: '/roles', label: 'Vai trò', icon: 'shield', countKey: 'roles' },
+      { to: '/permissions', label: 'Quản lý quyền', icon: 'users', permission: 'permission.view' },
+    ],
   },
   {
     id: 'system-tools',
@@ -115,16 +134,16 @@ export const navigation = [
     items: [
       { to: '/declarations/d03/import', label: 'Nhập D03', icon: 'inbox' },
       { to: '/declarations/d03/export', label: 'Xuất D03', icon: 'upload' },
-      { to: '/declarations/ar/import', label: 'Nhập AR', icon: 'tag' },
-      { to: '/declarations/ar/export', label: 'Xuất AR', icon: 'tag' },
+      { to: '/declarations/ar/import', label: 'Nhập AR', icon: 'inbox' },
+      { to: '/declarations/ar/export', label: 'Xuất AR', icon: 'upload' },
     ],
   },
   {
     id: 'd05',
     label: 'D05',
     items: [
-      { to: '/declarations/d05/import', label: 'Nhập D05', icon: 'camera' },
-      { to: '/declarations/d05/export', label: 'Xuất D05', icon: 'send' },
+      { to: '/declarations/d05/import', label: 'Nhập D05', icon: 'inbox' },
+      { to: '/declarations/d05/export', label: 'Xuất D05', icon: 'upload' },
     ],
   },
   {
