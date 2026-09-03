@@ -183,10 +183,19 @@ export const ROW_BUILDERS = {
     isActive: activeOf(i),
     createdAt: daysAgo(500 - i),
   }),
+  /*
+   * Thôn/ấp mang cả tên tỉnh, không chỉ tên xã: form tạo mới chọn tỉnh trước rồi
+   * mới chọn xã, nên bản ghi phải giữ lại tỉnh — thiếu nó thì mở ra sửa lại,
+   * ô tỉnh trống và ô xã bị khoá theo.
+   *
+   * Cặp (tỉnh, xã) lấy cùng công thức với bảng xã nên luôn là cặp có thật: xã
+   * `WARDS[i % 4]` thuộc tỉnh `PROVINCES[i % 6]` ứng với dòng xã thứ `i % 12`.
+   */
   '/hamlets': (i) => ({
     code: String(i + 1).padStart(3, '0'),
     name: pick(HAMLETS, i),
     wardName: pick(WARDS, i),
+    provinceName: pick(PROVINCES, i),
     isActive: activeOf(i),
     createdAt: daysAgo(400 - i / 10),
   }),
@@ -253,17 +262,36 @@ export const ROW_BUILDERS = {
       agentName: pick(AGENTS, i),
     };
   },
-  '/payments': (i) => ({
-    code: serial('PN', i),
-    agentName: pick(AGENTS, i),
-    districtName: pick(DISTRICTS, i),
-    amount: amountOf(i) * 12,
-    paidAt: businessDate(i),
-    status: pick(STATUSES, i),
-    insuranceType: pick(INSURANCE_TYPES, i),
-    attachmentStatus: i % 3 === 0 ? 'missing' : 'attached',
-    confirmStatus: pick(CONFIRM_STATUSES, i),
-  }),
+  /**
+   * Phiếu nộp tiền: bản đối chiếu giữa danh sách kê khai và số tiền thực nộp.
+   * `diffAmount` luôn bằng `amount - listedAmount` để dòng nào lệch thì thấy
+   * ngay — form tạo mới cũng tính theo đúng phép này.
+   */
+  '/payments': (i) => {
+    const listedAmount = amountOf(i) * 12;
+    const amount = i % 5 === 0 ? listedAmount - 50_000 : listedAmount;
+
+    return {
+      code: serial('PN', i),
+      agentName: pick(AGENTS, i),
+      districtName: pick(DISTRICTS, i),
+      unitCode: `DV${String(101 + (i % 40))}`,
+      batch: String((i % 4) + 1),
+      cardCount: 3 + (i % 9),
+      rejectedCardCount: i % 7 === 0 ? 1 : 0,
+      listedAmount,
+      amount,
+      diffAmount: amount - listedAmount,
+      dossierCode: serial('HS', i),
+      paidAt: businessDate(i),
+      status: pick(STATUSES, i),
+      insuranceType: pick(INSURANCE_TYPES, i),
+      attachmentStatus: i % 3 === 0 ? 'missing' : 'attached',
+      confirmStatus: pick(CONFIRM_STATUSES, i),
+      signed: i % 2 === 0,
+      note: i % 4 === 0 ? 'Nộp bù đợt trước' : null,
+    };
+  },
   '/receipts': (i) => ({
     receiptNo: serial('BL', i),
     bookNo: serial('S', i % 12),
@@ -344,6 +372,17 @@ export const ROW_BUILDERS = {
       i,
     ),
     guardName: 'web',
+    description: pick(
+      [
+        'Toàn quyền trên hệ thống',
+        'Nhập và xem biên lai của đại lý mình phụ trách',
+        'Đối chiếu biên lai đại lý nộp lại',
+        'Nhận và trả quyển biên lai cho đại lý',
+        'Chỉ xem, không sửa dữ liệu',
+        'Duyệt hồ sơ kê khai gửi cơ quan BHXH',
+      ],
+      i,
+    ),
     permissionsCount: [356, 26, 15, 36, 0, 2][i % 6],
     usersCount: 12 - i,
     createdAt: daysAgo(300 - i * 20),

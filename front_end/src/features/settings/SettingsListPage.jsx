@@ -8,16 +8,29 @@ import { formatDateTime } from '@/lib/format';
  * Khác trang "Cài đặt hệ thống" (form nhóm): ở đây thêm/xoá được khoá mới, vì
  * công thức tính mức đóng có thể phát sinh tham số mà frontend chưa biết trước.
  */
+const SETTING_GROUP = 'Thông tin tham số';
+
 const SETTING_FIELDS = [
   {
     name: 'key',
     label: 'Key',
     required: true,
-    placeholder: 'base_salary',
+    prefix: '#',
+    placeholder: 'VD: base_salary',
     hint: 'Chữ thường, nối bằng dấu gạch dưới.',
+    group: SETTING_GROUP,
+    groupIcon: 'cog',
   },
-  { name: 'value', label: 'Giá trị của ô', required: true },
-  { name: 'description', label: 'Mô tả', colSpan: 2 },
+  { name: 'value', label: 'Giá trị của ô', required: true, group: SETTING_GROUP },
+  {
+    name: 'description',
+    label: 'Mô tả',
+    type: 'textarea',
+    rows: 2,
+    colSpan: 'full',
+    placeholder: 'VD: Mức lương cơ sở dùng để tính mức đóng',
+    group: SETTING_GROUP,
+  },
 ];
 
 export default function SettingsListPage() {

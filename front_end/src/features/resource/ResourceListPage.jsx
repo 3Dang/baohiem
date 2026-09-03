@@ -26,6 +26,10 @@ import { useTabCounts } from './useTabCounts';
 import { exportParamsOf, tabFiltersOf } from './params';
 import ResourceFormModal from './ResourceFormModal';
 
+/**
+ * @typedef {{ exportParams: Record<string, any>, refetch: () => void }} SlotContext
+ */
+
 /** Liên kết "Chỉnh sửa" ở cuối mỗi dòng, kèm nút xoá. */
 function RowActions({ row, onEdit, onDelete }) {
   return (
@@ -61,7 +65,8 @@ function RowActions({ row, onEdit, onDelete }) {
  * phân trang, tìm kiếm, lọc, chọn dòng, sắp xếp, trạng thái tải.
  *
  * Các phần bật theo nhu cầu:
- * - `formFields` → thêm/sửa/xoá (nút tạo mới, "Chỉnh sửa" mỗi dòng)
+ * - `formFields` → thêm/sửa/xoá (nút tạo mới, "Chỉnh sửa" mỗi dòng); `formColumns`
+ *   và `formSize` nới hộp thoại ra khi form có nhiều ô (phiếu nộp tiền)
  * - `creatable` / `deletable` → tắt riêng nút "Tạo mới" hoặc nút xoá hàng loạt
  *   khi trang chỉ sửa được bản ghi có sẵn (báo cáo: bản ghi mới đến từ trang
  *   nhập hoặc tệp Excel, không tạo tay ở đây)
@@ -76,10 +81,10 @@ function RowActions({ row, onEdit, onDelete }) {
  * - `stats` / `panels` → dải ô số liệu và khối gập trước bảng, do trang tự dựng
  *   (chúng cần dữ liệu riêng nên trang cha nạp rồi truyền vào)
  *
- * `actions` và `toolbar` nhận thêm dạng hàm `({ exportParams }) => …`: nút kết
- * xuất cần biết bảng đang lọc theo gì, mà điều kiện đó chỉ có ở bên trong
- * component này. Truyền hàm thì tệp tải về khớp với những gì đang thấy trên
- * màn hình thay vì luôn là cả bảng.
+ * `actions` và `toolbar` nhận thêm dạng hàm `({ exportParams, refetch }) => …`:
+ * nút kết xuất cần biết bảng đang lọc theo gì và nút ghi dữ liệu cần làm bảng
+ * tải lại, mà cả hai thứ đó chỉ có ở bên trong component này. Truyền hàm thì tệp
+ * tải về khớp với những gì đang thấy trên màn hình thay vì luôn là cả bảng.
  *
  * @param {{
  *   title: string,
@@ -94,12 +99,14 @@ function RowActions({ row, onEdit, onDelete }) {
  *   tabs?: { name?: string, counted?: boolean,
  *             items: Array<{ value: string, label: string, filters?: object }> },
  *   searchPlaceholder?: string,
- *   toolbar?: React.ReactNode | ((context: { exportParams: object }) => React.ReactNode),
- *   actions?: React.ReactNode | ((context: { exportParams: object }) => React.ReactNode),
+ *   toolbar?: React.ReactNode | ((context: SlotContext) => React.ReactNode),
+ *   actions?: React.ReactNode | ((context: SlotContext) => React.ReactNode),
  *   stats?: React.ReactNode,
  *   panels?: React.ReactNode,
  *   sortOptions?: Array<{ value: string, label: string }>,
  *   formFields?: Array<object>,
+ *   formColumns?: 1|2|3|4,
+ *   formSize?: string,
  *   creatable?: boolean,
  *   deletable?: boolean,
  *   createLabel?: string,
@@ -136,6 +143,8 @@ export default function ResourceListPage({
   panels,
   sortOptions,
   formFields,
+  formColumns,
+  formSize,
   creatable = true,
   deletable = true,
   createLabel,
@@ -170,11 +179,13 @@ export default function ResourceListPage({
   const tabItems = useTabCounts(endpoint, { tabs, params: list.params });
 
   /*
-   * Điều kiện để kết xuất: bộ lọc và thứ tự sắp xếp đang áp dụng, bỏ phân trang.
-   * Trang cha khai `actions`/`toolbar` dạng hàm sẽ nhận cái này và gắn vào nút
-   * xuất, nhờ vậy tệp tải về đúng bằng những gì bảng đang hiện.
+   * Những gì nút của trang cần mà chỉ bên trong component này mới có:
+   * - `exportParams`: bộ lọc và thứ tự sắp xếp đang áp dụng, bỏ phân trang, nhờ
+   *   vậy tệp tải về đúng bằng những gì bảng đang hiện
+   * - `refetch`: hành động ghi dữ liệu từ nút riêng của trang (nhập biên lai từ
+   *   cổng BHXH) phải làm bảng tải lại, nếu không dòng vừa thêm chưa thấy đâu
    */
-  const slotContext = { exportParams: exportParamsOf(list.params) };
+  const slotContext = { exportParams: exportParamsOf(list.params), refetch: list.refetch };
   const renderSlot = (slot) => (typeof slot === 'function' ? slot(slotContext) : slot);
 
   const { create, update, remove, removeMany } = useResourceMutations(endpoint);
@@ -182,6 +193,8 @@ export default function ResourceListPage({
 
   // `editing`: null = đang thêm mới, object = đang sửa, undefined = form đóng
   const [editing, setEditing] = useState(undefined);
+  // Tăng lên mỗi lần "Tạo & tạo thêm" lưu xong: tín hiệu để form tự xoá trắng
+  const [formReset, setFormReset] = useState(0);
   const [deleting, setDeleting] = useState(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [runningBulk, setRunningBulk] = useState(null);
@@ -243,11 +256,23 @@ export default function ResourceListPage({
   const allColumns = editable || rowActions?.length ? [...columns, actionColumn()] : columns;
   const tableColumns = allColumns.filter((column) => !hiddenColumns.includes(column.key));
 
-  const submitForm = (values) => {
+  /**
+   * Lưu form. `again` là nút "Tạo & tạo thêm": giữ hộp thoại mở và xoá trắng để
+   * nhập bản ghi kế tiếp — nhập danh mục là việc làm cả loạt.
+   *
+   * Chỉ xoá form sau khi lưu **thành công**: xoá ngay lúc bấm thì lỗi 422 trả
+   * về sẽ không còn dữ liệu nào để sửa.
+   */
+  const submitForm = (values, { again } = {}) => {
     const mutation = editing ? update : create;
     const payload = editing ? { id: editing.id, values } : values;
 
-    mutation.mutate(payload, { onSuccess: () => setEditing(undefined) });
+    mutation.mutate(payload, {
+      onSuccess: () => {
+        if (again && !editing) setFormReset((prev) => prev + 1);
+        else setEditing(undefined);
+      },
+    });
   };
 
   const confirmDelete = () => {
@@ -483,9 +508,12 @@ export default function ResourceListPage({
       {editable && (
         <ResourceFormModal
           open={editing !== undefined}
-          title={editing ? `Sửa ${recordLabel}` : `Thêm ${recordLabel}`}
+          title={editing ? `Sửa ${recordLabel}` : `Tạo ${recordLabel}`}
           fields={formFields}
           record={editing}
+          columns={formColumns}
+          size={formSize}
+          resetToken={formReset}
           submitting={activeMutation.isPending}
           error={activeMutation.error}
           onSubmit={submitForm}

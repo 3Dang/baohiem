@@ -56,10 +56,17 @@ npm run check:demo
 Gọi thẳng adapter demo bằng Node (không cần trình duyệt) và khẳng định từng điều mà
 giao diện đang trông cậy: mọi tuyến trong `endpoints.js` có người trả lời, mọi đường
 dẫn kết xuất trả về tệp, **mỗi ô lọc thật sự làm số dòng giảm đi**, dải tab cắt vừa
-đúng cả tập, ba kiểu tra cứu ở Bảng điều khiển so trên ba trường khác nhau.
+đúng cả tập, ba kiểu tra cứu ở Bảng điều khiển so trên ba trường khác nhau, ô chọn
+danh mục tìm được trên server và ô chọn phụ thuộc lọc đúng theo đơn vị cha, và **mọi
+field khai trên form đều là field có thật của bản ghi**.
 
 Ô lọc không lọc được gì là lỗi khó thấy nhất của trang danh sách — chọn xong bảng y
 nguyên, không thông báo nào — nên nó được kiểm bằng cách chạy, không bằng cách đọc.
+Field trên form cũng vậy: khai thêm một ô mà bản ghi không có trường đó thì tạo mới
+vẫn chạy, chỉ khi mở ra sửa mới thấy ô trống. Danh sách field được **đọc từ chính mã
+nguồn trang** chứ không chép lại vào script — chép lại thì quên cập nhật là script vẫn
+báo đạt.
+
 Script cũng là đặc tả sống của hợp đồng API: mỗi khẳng định là một điều backend thật
 phải làm được. Xem [scripts/check-demo.mjs](scripts/check-demo.mjs).
 
@@ -239,7 +246,7 @@ nghiệp vụ kèm ngày hôm nay.
 ### Thêm / sửa / xoá bản ghi
 
 Trang danh sách nào khai báo `formFields` sẽ bật sẵn CRUD trên chính bảng đó
-(nút *Thêm mới*, biểu tượng sửa/xoá ở mỗi dòng) và gọi ba đường dẫn REST
+(nút *Tạo mới*, biểu tượng sửa/xoá ở mỗi dòng) và gọi ba đường dẫn REST
 suy ra từ endpoint của danh sách:
 
 ```
@@ -248,9 +255,44 @@ PUT    /<endpoint>/{id}   { … } → bản ghi sau khi sửa
 DELETE /<endpoint>/{id}         → 204
 ```
 
-Ô số gửi lên dạng số, ô không bắt buộc để trống gửi `null` (không phải chuỗi rỗng),
-ví dụ `effectiveTo` rỗng nghĩa là mốc đang áp dụng. Lỗi `422` được gắn vào đúng field
-theo tên. Sau mỗi lần thành công frontend tự tải lại danh sách.
+Ô số gửi lên dạng số, ô đúng/sai gửi `true`/`false`, ô không bắt buộc để trống gửi
+`null` (không phải chuỗi rỗng), ví dụ `effectiveTo` rỗng nghĩa là mốc đang áp dụng. Lỗi
+`422` được gắn vào đúng field theo tên. Sau mỗi lần thành công frontend tự tải lại danh
+sách.
+
+Hộp thoại tạo mới có ba nút: *Tạo* lưu rồi đóng, *Tạo & tạo thêm* lưu rồi xoá form
+nhưng giữ hộp thoại mở (nhập danh mục là việc làm cả loạt), *Huỷ bỏ*. Khi sửa thì chỉ
+còn *Lưu* và *Huỷ bỏ* — "tạo thêm" không có nghĩa gì trên một bản ghi có sẵn.
+
+### Danh mục cho ô chọn trong form
+
+Ô chọn khai `optionsFrom` nạp danh sách từ chính đường dẫn danh mục, nên đường dẫn đó
+phải nhận `search` và điều kiện lọc theo đơn vị cha:
+
+```
+GET /wards?page=1&per_page=200&search=Ba+Đình&provinceName=Thành phố Hà Nội
+    → khuôn paginator như mọi danh sách
+```
+
+Ô chọn chỉ tải **200 dòng đầu**, nên với danh mục dài (3.320 phường/xã, 217 đại lý)
+việc tìm phải do backend làm: lọc trong 200 dòng đã tải thì gõ tên một xã không nằm
+trong số đó sẽ ra "không có kết quả" trong khi xã ấy có thật. `meta.total` lớn hơn số
+dòng trả về thì ô chọn tự ghi chú danh mục chưa hiện hết.
+
+Ô chọn phụ thuộc gửi tên đơn vị cha làm điều kiện lọc (`provinceName`, `districtName`,
+`wardName`) và chỉ truy vấn sau khi cha đã có giá trị.
+
+### Nhận dải số biên lai từ cổng BHXH
+
+```
+POST /receipts/import-bhxh   { bookNo, fromNo, toNo, agentName|null, receiptType }
+     → { imported, from, to } (201)
+```
+
+Một lần gọi tạo **cả dải** biên lai (51-100 là 50 bản ghi) chứ không phải một bản ghi,
+và dải đó do cơ quan BHXH cấp, nên đường dẫn nằm ngoài REST của `/receipts`.
+`agentName` rỗng nghĩa là chưa cấp phát cho đại lý nào — cấp phát sau. Dải ngược
+(`fromNo > toNo`) trả `422`.
 
 ### Tra cứu thông tin bảo hiểm (Bảng điều khiển)
 
@@ -397,6 +439,7 @@ biệt:
 | --- | --- |
 | `endpoint`, `columns` | bắt buộc — cột đặt `sortable: true` là bấm sắp xếp được |
 | `formFields` | nút *Tạo mới*, liên kết *Chỉnh sửa*/*Xoá* mỗi dòng, xoá hàng loạt |
+| `formColumns`, `formSize` | số cột của form và bề rộng hộp thoại, khi form nhiều ô |
 | `creatable`, `deletable` | tắt riêng *Tạo mới* / xoá khi trang chỉ sửa bản ghi có sẵn |
 | `filterFields` | thanh bộ lọc + chip điều kiện; `group` gom thành khối nền xanh |
 | `deferFilters` | bộ lọc phải bấm *Áp dụng* mới truy vấn (dùng cho truy vấn nặng) |
@@ -453,6 +496,31 @@ Cột của bảng nhận thêm hai khả năng: `render: (row, stt) => …` có
 tập kết quả (không phải trong trang đang xem), và `renderFooter: (totals) => …` cho
 dòng *TỔNG CỘNG* — cần khi ô ghép hai số liệu, vì cách hiện của một dòng dữ liệu không
 dùng lại được cho dòng tổng (ô "tổng phí / hình thức nộp" không có hình thức nộp).
+
+### Khai báo field của form
+
+`formFields` là mảng khai báo, mỗi phần tử một ô nhập:
+
+| Khoá | Ý nghĩa |
+| --- | --- |
+| `name` | bắt buộc — khớp tên field backend để lỗi `422` gắn đúng ô |
+| `label`, `required`, `placeholder`, `hint` | nhãn, dấu bắt buộc, gợi ý dưới ô |
+| `type` | input HTML (`text` mặc định, `number`, `date`) hoặc `textarea`, `checkbox`, `toggle` |
+| `options` | danh sách khai cứng tại trang, dạng `[{ value, label }]` |
+| `optionsFrom` | `{ endpoint, labelKey?, valueKey?, dependsOn?, param? }` — nạp từ danh mục |
+| `searchable` | bật/tắt ô tìm kiếm trong ô chọn; mặc định bật khi có `optionsFrom` |
+| `checkedValue`, `uncheckedValue` | cặp giá trị của checkbox khi bản ghi lưu trạng thái bằng chuỗi |
+| `prefix`, `prefixIcon` | ô biểu tượng đầu dòng — `#` cho mã định danh, icon cho tên |
+| `colSpan` | `2` / `3` / `4` / `'full'` — ô rộng hơn một cột |
+| `group` | gom vào khối nền xanh có tiêu đề, cùng hình dáng với khối của thanh bộ lọc |
+| `groupIcon`, `groupHint`, `groupColumns`, `groupCollapsible` | khai ở field **đầu** của khối |
+| `defaultValue` | giá trị sẵn khi tạo mới (ngày nộp tiền mặc định là hôm nay) |
+
+Khối gom theo các field **liền kề** như `groupBy` của bảng, nên thứ tự khai báo là thứ
+tự trên màn hình: khai xen kẽ hai khối thì được đúng hai khối ở đúng chỗ đó.
+
+`checkedValue` giữ checkbox và cột trong bảng nói về **cùng một trường**: ô *Đã đính
+kèm* ghi `attachmentStatus: 'attached'` thay vì sinh thêm một cột boolean song song.
 
 ## Quy ước khi mở rộng
 

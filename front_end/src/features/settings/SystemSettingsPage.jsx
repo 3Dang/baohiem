@@ -24,6 +24,8 @@ const VALUE_TYPE_OPTIONS = Object.entries(VALUE_TYPES).map(([value, { label }]) 
 /** Các danh mục có sẵn; người dùng cũng gõ được tên mới khi tạo tham số. */
 const CATEGORIES = ['Tính toán', 'Biên lai', 'Đơn vị', 'Kết nối'];
 
+const SETTING_GROUP = 'Thông tin tham số hệ thống';
+
 const SETTING_FIELDS = [
   {
     name: 'category',
@@ -31,23 +33,35 @@ const SETTING_FIELDS = [
     required: true,
     options: CATEGORIES.map((value) => ({ value, label: value })),
     placeholder: 'Chọn danh mục',
+    group: SETTING_GROUP,
+    groupIcon: 'cog',
   },
   {
     name: 'key',
     label: 'Mã cài đặt',
     required: true,
-    placeholder: 'base_salary',
+    prefix: '#',
+    placeholder: 'VD: base_salary',
     hint: 'Chữ thường, nối bằng dấu gạch dưới — mã này được code tham chiếu.',
+    group: SETTING_GROUP,
   },
-  { name: 'label', label: 'Tên cài đặt', required: true, colSpan: 2 },
+  {
+    name: 'label',
+    label: 'Tên cài đặt',
+    required: true,
+    colSpan: 2,
+    placeholder: 'VD: Mức lương cơ sở',
+    group: SETTING_GROUP,
+  },
   {
     name: 'valueType',
     label: 'Kiểu giá trị',
     required: true,
     options: VALUE_TYPE_OPTIONS,
     defaultValue: 'string',
+    group: SETTING_GROUP,
   },
-  { name: 'value', label: 'Giá trị', required: true },
+  { name: 'value', label: 'Giá trị', required: true, group: SETTING_GROUP },
 ];
 
 /**

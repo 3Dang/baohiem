@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import demoAdapter from '@/lib/demo/adapter';
 import { endpoints } from '@/lib/endpoints';
 import { ROW_BUILDERS } from '@/lib/demo/data';
@@ -195,6 +196,154 @@ const named = await get(endpoints.resources.insuranceHistory, {
   per_page: 25,
 });
 ok(named.data.length <= 25, 'tra theo tên vẫn cắt trang', `${named.data.length} / ${named.meta.total}`);
+
+section('Ô chọn trong form: tìm trên server và phụ thuộc đơn vị cha');
+
+/*
+ * Ô chọn danh mục dài (3.320 xã) chỉ tải một trang rồi gửi từ khoá lên server,
+ * nên `search` phải lọc được trên chính danh mục đó. Không lọc thì người dùng gõ
+ * tên một xã có thật và nhận về "không có kết quả nào khớp".
+ */
+const OPTION_PAGE = { page: 1, per_page: 200 };
+
+for (const [label, endpoint, term] of [
+  ['tỉnh/thành phố', endpoints.resources.provinces, 'Cần Thơ'],
+  ['quận/huyện', endpoints.resources.districts, 'An Biên'],
+  ['phường/xã', endpoints.resources.wards, 'Ba Đình'],
+  // Tên riêng, không phải tiền tố chung: mọi đại lý đều bắt đầu bằng "Đại lý"
+  // nên tìm theo tiền tố đó ra cả bảng và không chứng minh được điều gì
+  ['đại lý', endpoints.resources.agents, 'Phú Nhuận'],
+]) {
+  const all = await totalOf(endpoint, OPTION_PAGE);
+  const found = await totalOf(endpoint, { ...OPTION_PAGE, search: term });
+  ok(found > 0 && found < all, `tìm ${label} theo tên`, `"${term}" → ${found} / ${all}`);
+}
+
+/*
+ * Ô chọn phụ thuộc: form thôn/ấp chọn tỉnh trước rồi mới chọn xã, và chỉ được
+ * thấy xã của tỉnh đó. Điều kiện không lọc được thì ô con hiện cả nước — người
+ * dùng phải tự nhớ xã nào thuộc tỉnh nào, đúng việc mà ô chọn phải làm hộ.
+ */
+const provinceName = (await get(endpoints.resources.provinces, OPTION_PAGE)).data[0].name;
+
+for (const [label, endpoint] of [
+  ['quận/huyện của một tỉnh', endpoints.resources.districts],
+  ['phường/xã của một tỉnh', endpoints.resources.wards],
+]) {
+  const all = await totalOf(endpoint, OPTION_PAGE);
+  const scoped = await totalOf(endpoint, { ...OPTION_PAGE, provinceName });
+  ok(scoped > 0 && scoped < all, label, `${provinceName} → ${scoped} / ${all}`);
+}
+
+// Bản ghi con phải mang cả đơn vị cha, nếu không mở ra sửa thì ô tỉnh trống và ô
+// xã bị khoá theo — không sửa nổi một thôn đã có sẵn
+const hamlet = (await get(endpoints.resources.hamlets, { page: 1, per_page: 1 })).data[0];
+ok(
+  Boolean(hamlet.provinceName && hamlet.wardName),
+  'thôn/ấp mang cả tỉnh và xã',
+  `${hamlet.wardName} · ${hamlet.provinceName}`,
+);
+
+const pairScoped = await totalOf(endpoints.resources.wards, {
+  ...OPTION_PAGE,
+  provinceName: hamlet.provinceName,
+  search: hamlet.wardName,
+});
+ok(pairScoped > 0, 'cặp tỉnh–xã của thôn/ấp là cặp có thật', `${pairScoped} dòng`);
+
+section('Form tạo mới: mọi field đều là field có thật của bản ghi');
+
+/*
+ * Field khai trên form mà bản ghi không có thì tạo mới vẫn chạy, nhưng mở ra sửa
+ * lại thì ô đó trống — dữ liệu vừa nhập biến mất mà không báo gì.
+ *
+ * Tên field đọc thẳng từ mã nguồn trang, không chép lại thành danh sách riêng:
+ * chép lại thì thêm một field vào form mà quên thêm vào dữ liệu giả vẫn "đạt".
+ * Đọc bằng regex vì `pages.jsx` chứa JSX — `import` được thì Node phải biết
+ * biên dịch JSX, mà script này cố ý chạy bằng Node trần.
+ */
+const fieldNamesOf = (file, constant) => {
+  const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  const start = source.indexOf(`const ${constant} = [`);
+  if (start === -1) throw new Error(`Không thấy ${constant} trong ${file}`);
+
+  const body = source.slice(start, source.indexOf('\n];', start));
+  return [...body.matchAll(/name: '([^']+)'/g)].map((matched) => matched[1]);
+};
+
+/** Mỗi dòng: mảng khai báo field ↔ endpoint mà form đó ghi vào. */
+const FORMS = [
+  ['phiếu nộp tiền', 'src/features/business/pages.jsx', 'PAYMENT_FIELDS', endpoints.resources.payments],
+  ['mốc lương cơ sở', 'src/features/business/pages.jsx', 'BASE_SALARY_FIELDS', endpoints.resources.baseSalary],
+  ['quyển biên lai', 'src/features/business/pages.jsx', 'RECEIPT_BOOK_FIELDS', endpoints.resources.receiptBooks],
+  ['đại lý', 'src/features/business/pages.jsx', 'AGENT_FIELDS', endpoints.resources.agents],
+  ['vai trò', 'src/features/business/pages.jsx', 'ROLE_FIELDS', endpoints.resources.roles],
+  ['tham số tính toán', 'src/features/settings/SettingsListPage.jsx', 'SETTING_FIELDS', endpoints.resources.settings],
+  ['tham số hệ thống', 'src/features/settings/SystemSettingsPage.jsx', 'SETTING_FIELDS', endpoints.resources.systemSettings],
+  ['hồ sơ D03', 'src/features/declarations/pages.jsx', 'D03_FIELDS', endpoints.declarations.d03],
+  ['hồ sơ AR', 'src/features/declarations/pages.jsx', 'AR_FIELDS', endpoints.declarations.ar],
+  ['hồ sơ D05', 'src/features/declarations/pages.jsx', 'D05_FIELDS', endpoints.declarations.d05],
+  ['báo cáo (phần chung)', 'src/features/reports/ReportPage.jsx', 'REPORT_FIELDS', endpoints.reports.d03],
+];
+
+for (const [label, file, constant, endpoint] of FORMS) {
+  const fields = fieldNamesOf(file, constant);
+  const record = (await get(endpoint, { page: 1, per_page: 1 })).data[0];
+  const absent = fields.filter((field) => !(field in record));
+  ok(absent.length === 0, `${fields.length} field của ${label}`, absent.join(' · '));
+}
+
+/*
+ * Danh mục dùng chung hai hàm dựng field (`identityFields`, `parentField`) nên
+ * tên field không nằm trong một mảng đọc được bằng regex; kiểm theo đúng những
+ * gì hai hàm đó sinh ra. Ô chọn đơn vị cha là chỗ đã sai một lần: thôn/ấp thiếu
+ * `provinceName` thì mở ra sửa là ô tỉnh trống và ô xã khoá lại.
+ */
+const CATALOG_FORMS = [
+  [endpoints.resources.provinces, ['code', 'name']],
+  [endpoints.resources.districts, ['code', 'name', 'provinceName']],
+  [endpoints.resources.wards, ['code', 'name', 'provinceName', 'districtName']],
+  [endpoints.resources.hamlets, ['code', 'name', 'provinceName', 'wardName']],
+  [endpoints.resources.medicalFacilities, ['code', 'name', 'provinceName', 'newProvinceName', 'level']],
+  [endpoints.resources.relationships, ['code', 'name']],
+  [endpoints.resources.contributionLevels, ['code', 'name', 'rate']],
+  [endpoints.resources.ethnicities, ['code', 'name']],
+];
+
+const catalogGaps = [];
+for (const [endpoint, fields] of CATALOG_FORMS) {
+  const record = (await get(endpoint, { page: 1, per_page: 1 })).data[0];
+  const absent = fields.filter((field) => !(field in record));
+  if (absent.length) catalogGaps.push(`${endpoint}: ${absent.join(', ')}`);
+}
+ok(catalogGaps.length === 0, `${CATALOG_FORMS.length} form danh mục`, catalogGaps.join(' · '));
+
+section('Nhập từ bhxh: dải số biên lai thành từng biên lai thật');
+
+/*
+ * Hộp thoại gửi một dải ("51-100") và mong danh sách phía sau dài thêm đúng bằng
+ * dải đó. Trả về con số suông thì toast báo thành công mà bảng y nguyên.
+ */
+const beforeImport = await totalOf(endpoints.resources.receipts);
+const imported = await call('post', endpoints.receipts.importFromBhxh, {}, {
+  data: JSON.stringify({ bookNo: 'S9001', fromNo: 51, toNo: 100, receiptType: 'bhyt' }),
+}).then((res) => res.data);
+const afterImport = await totalOf(endpoints.resources.receipts);
+
+ok(imported.imported === 50, 'nhận đúng số biên trong dải', `${imported.imported} số`);
+ok(
+  afterImport - beforeImport === 50,
+  'danh sách dài thêm đúng bằng dải',
+  `${beforeImport} → ${afterImport}`,
+);
+
+const rejected = await call('post', endpoints.receipts.importFromBhxh, {}, {
+  data: JSON.stringify({ bookNo: 'S9002', fromNo: 100, toNo: 51, receiptType: 'bhyt' }),
+}).then(
+  () => null,
+  (error) => error.response?.status,
+);
+ok(rejected === 422, 'dải ngược bị từ chối', `→ ${rejected}`);
 
 section('Mọi bảng đều sắp xếp được theo cột của chính nó');
 

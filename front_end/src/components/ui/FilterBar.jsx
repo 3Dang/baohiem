@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import Icon from './Icon';
 import Button from './Button';
+import FieldGroup from './FieldGroup';
 import { SelectField, TextField } from './Field';
 
 const GRID = {
@@ -85,23 +86,16 @@ export default function FilterBar({
               const { groupHint, groupIcon } = groupFields[0];
 
               return (
-                <fieldset key={group} className="rounded-lg bg-brand-100/60 p-3">
-                  <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold text-gray-900">
-                    {groupIcon && <Icon name={groupIcon} className="h-4 w-4 text-brand-700" />}
-                    {group}
-                  </legend>
-                  {groupHint && <p className="mb-2 px-1 text-xs text-gray-600">{groupHint}</p>}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {groupFields.map((field) => (
-                      <FilterField
-                        key={field.name}
-                        field={field}
-                        value={values[field.name]}
-                        onChange={onChange}
-                      />
-                    ))}
-                  </div>
-                </fieldset>
+                <FieldGroup key={group} title={group} icon={groupIcon} hint={groupHint}>
+                  {groupFields.map((field) => (
+                    <FilterField
+                      key={field.name}
+                      field={field}
+                      value={values[field.name]}
+                      onChange={onChange}
+                    />
+                  ))}
+                </FieldGroup>
               );
             })}
           </div>

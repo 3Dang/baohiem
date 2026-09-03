@@ -55,6 +55,14 @@ export const endpoints = {
     returnReport: '/receipt-books/return-report',
   },
   /**
+   * Nhận một dải số biên lai từ cổng BHXH. Không phải REST trên `/receipts` vì
+   * một lần gọi tạo cả dải (51-100) chứ không phải một bản ghi, và dải đó do cơ
+   * quan BHXH cấp — hệ thống chỉ ghi nhận, không tự đặt số.
+   */
+  receipts: {
+    importFromBhxh: '/receipts/import-bhxh',
+  },
+  /**
    * Hai việc theo lô của trang Lịch sử bảo hiểm. Tách khỏi `resources` vì không
    * phải REST: `import` nhận tệp Excel (multipart), `template` trả về tệp mẫu.
    */

@@ -180,33 +180,68 @@ const GENDER_OPTIONS = [
  * giới tính hay thiếu số biên lai. Vì vậy chỉ mở những trường hay phải sửa lại,
  * không mở toàn bộ bản ghi.
  */
+const PERSON_GROUP = 'Thông tin người tham gia';
+const RECEIPT_GROUP = 'Thông tin biên lai';
+
 const REPORT_FIELDS = [
-  { name: 'fullName', label: 'Họ và tên', required: true },
-  { name: 'insuranceNo', label: 'Mã số BHXH' },
-  { name: 'idNo', label: 'CCCD/CMND' },
-  { name: 'gender', label: 'Giới tính', options: GENDER_OPTIONS, placeholder: 'Chọn' },
-  { name: 'birthDate', label: 'Ngày sinh', type: 'date' },
-  { name: 'receiptNo', label: 'Số biên lai' },
-  { name: 'receiptDate', label: 'Ngày biên lai', type: 'date' },
+  { name: 'fullName', label: 'Họ và tên', required: true, group: PERSON_GROUP, groupIcon: 'user' },
+  {
+    name: 'insuranceNo',
+    label: 'Mã số BHXH',
+    placeholder: 'VD: 0123456789',
+    group: PERSON_GROUP,
+  },
+  { name: 'idNo', label: 'CCCD/CMND', placeholder: 'VD: 092081012936', group: PERSON_GROUP },
+  {
+    name: 'gender',
+    label: 'Giới tính',
+    options: GENDER_OPTIONS,
+    placeholder: 'Chọn giới tính',
+    group: PERSON_GROUP,
+  },
+  { name: 'birthDate', label: 'Ngày sinh', type: 'date', group: PERSON_GROUP },
+  { name: 'receiptNo', label: 'Số biên lai', group: RECEIPT_GROUP, groupIcon: 'receipt' },
+  { name: 'receiptDate', label: 'Ngày biên lai', type: 'date', group: RECEIPT_GROUP },
   {
     name: 'approvedAt',
     label: 'Ngày duyệt',
     type: 'date',
     hint: 'Để trống nếu cơ quan BHXH chưa duyệt.',
+    group: RECEIPT_GROUP,
   },
-  { name: 'agentName', label: 'Đại lý' },
-  { name: 'status', label: 'Trạng thái', options: STATUS_OPTIONS },
+  {
+    name: 'agentName',
+    label: 'Đại lý',
+    placeholder: 'Chọn đại lý',
+    optionsFrom: { endpoint: endpoints.resources.agents },
+    clearable: true,
+    group: RECEIPT_GROUP,
+  },
+  {
+    name: 'status',
+    label: 'Trạng thái',
+    options: STATUS_OPTIONS,
+    placeholder: 'Chọn trạng thái',
+    group: RECEIPT_GROUP,
+  },
 ];
 
 /** D05 sửa thêm phần tiền: số tháng và mức lương quyết định số phải nộp. */
 const D05_EXTRA_FIELDS = [
-  { name: 'months', label: 'Số tháng đóng', type: 'number', min: 1, max: 60 },
-  { name: 'salaryBase', label: 'Mức lương căn cứ', type: 'number', min: 0, step: 100000 },
+  { name: 'months', label: 'Số tháng đóng', type: 'number', min: 1, max: 60, group: RECEIPT_GROUP },
+  {
+    name: 'salaryBase',
+    label: 'Mức lương căn cứ',
+    type: 'number',
+    min: 0,
+    step: 100000,
+    group: RECEIPT_GROUP,
+  },
 ];
 
 /** BHYT sửa thêm mức đóng; BHXH tự nguyện suy ra từ mức lương và số tháng. */
 const BHYT_EXTRA_FIELDS = [
-  { name: 'amount', label: 'Mức đóng', type: 'number', min: 0, step: 1000 },
+  { name: 'amount', label: 'Mức đóng', type: 'number', min: 0, step: 1000, group: RECEIPT_GROUP },
 ];
 
 /** AR còn sửa được loại điều chỉnh — chọn sai loại thì cơ quan BHXH trả hồ sơ. */
@@ -218,7 +253,8 @@ const AR_EXTRA_FIELDS = [
       value,
       label: value,
     })),
-    placeholder: 'Chọn loại',
+    placeholder: 'Chọn loại điều chỉnh',
+    group: RECEIPT_GROUP,
   },
 ];
 

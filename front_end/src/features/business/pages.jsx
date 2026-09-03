@@ -14,12 +14,8 @@ import { downloadExport } from '@/lib/download';
 import { endpoints } from '@/lib/endpoints';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format';
 import { endOfMonthISO, monthOptions, startOfMonthISO, todayISO } from '@/lib/date';
-
-const RECEIPT_TYPE_LABELS = { bhyt: 'BHYT', bhxh: 'BHXH', combined: 'BHYT + BHXH' };
-const RECEIPT_TYPE_OPTIONS = Object.entries(RECEIPT_TYPE_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
+import ImportFromBhxhModal from './ImportFromBhxhModal';
+import { RECEIPT_TYPE_LABELS, RECEIPT_TYPE_OPTIONS } from './receiptTypes';
 
 const INSURANCE_TYPE_OPTIONS = [
   { value: 'd03', label: 'D03 - BHYT hộ gia đình' },
@@ -64,6 +60,8 @@ const amountColumn = (header = 'Số tiền') => ({
  * Các mốc lương cơ sở dùng để tính mức đóng. Bản ghi không có ngày kết thúc
  * là mốc đang áp dụng, nên hiển thị khác đi thay vì để trống một ô.
  */
+const BASE_SALARY_GROUP = 'Thông tin mức lương cơ sở';
+
 const BASE_SALARY_FIELDS = [
   {
     name: 'amount',
@@ -72,17 +70,35 @@ const BASE_SALARY_FIELDS = [
     required: true,
     min: 0,
     step: 10000,
-    placeholder: '2340000',
+    placeholder: 'VD: 2340000',
     hint: 'Đơn vị đồng, nhập số nguyên.',
+    group: BASE_SALARY_GROUP,
+    groupIcon: 'coin',
   },
-  { name: 'effectiveFrom', label: 'Hiệu lực từ', type: 'date', required: true },
+  {
+    name: 'effectiveFrom',
+    label: 'Hiệu lực từ',
+    type: 'date',
+    required: true,
+    defaultValue: todayISO(),
+    group: BASE_SALARY_GROUP,
+  },
   {
     name: 'effectiveTo',
     label: 'Hiệu lực đến',
     type: 'date',
     hint: 'Để trống nếu đây là mốc đang áp dụng.',
+    group: BASE_SALARY_GROUP,
   },
-  { name: 'note', label: 'Ghi chú', colSpan: 2, placeholder: 'Căn cứ Nghị định…' },
+  {
+    name: 'note',
+    label: 'Ghi chú',
+    type: 'textarea',
+    rows: 2,
+    colSpan: 'full',
+    placeholder: 'VD: Căn cứ Nghị định 73/2024/NĐ-CP',
+    group: BASE_SALARY_GROUP,
+  },
 ];
 
 /** Mức lương cơ sở theo từng giai đoạn — căn cứ tính mức đóng. */
@@ -230,20 +246,132 @@ export function InsuranceReceiptsPage() {
   );
 }
 
-/** Các trường của phiếu nộp tiền — tạo mới trực tiếp trên trang danh sách. */
+/**
+ * Các trường của phiếu nộp tiền — tạo mới trực tiếp trên trang danh sách.
+ *
+ * Một khối duy nhất "Thông tin Biên lai" chia bốn cột như hệ thống cũ: phiếu
+ * nộp tiền là bản đối chiếu giữa danh sách người tham gia và số tiền thực nộp,
+ * nên các con số phải nằm cạnh nhau trên cùng tầm mắt mới soát được.
+ *
+ * Ba ô số mặc định 0 (không để trống): phiếu nào cũng phải có ba con số này, để
+ * trống thì không phân biệt được "chưa nhập" với "không có thẻ nào bị từ chối".
+ */
+const PAYMENT_GROUP = 'Thông tin Biên lai';
+
 const PAYMENT_FIELDS = [
-  { name: 'code', label: 'Số phiếu', required: true, placeholder: 'PN0001' },
-  { name: 'agentName', label: 'Đại lý', required: true },
-  { name: 'amount', label: 'Số tiền', type: 'number', required: true, min: 0, step: 1000 },
-  { name: 'paidAt', label: 'Ngày nộp tiền', type: 'date', required: true },
+  {
+    name: 'districtName',
+    label: 'Quận/Huyện',
+    required: true,
+    placeholder: 'Chọn quận/huyện',
+    optionsFrom: { endpoint: endpoints.resources.districts },
+    group: PAYMENT_GROUP,
+    groupIcon: 'receipt',
+    groupColumns: 4,
+  },
   {
     name: 'insuranceType',
     label: 'Loại bảo hiểm',
+    required: true,
     options: INSURANCE_TYPE_OPTIONS,
     placeholder: 'Chọn bảo hiểm',
-    required: true,
+    group: PAYMENT_GROUP,
   },
-  { name: 'status', label: 'Trạng thái', options: STATUS_OPTIONS, defaultValue: 'draft' },
+  {
+    name: 'agentName',
+    label: 'Tên cộng tác viên',
+    required: true,
+    placeholder: 'Chọn cộng tác viên',
+    optionsFrom: { endpoint: endpoints.resources.agents },
+    group: PAYMENT_GROUP,
+  },
+  { name: 'unitCode', label: 'Mã đơn vị', placeholder: 'VD: DV001', group: PAYMENT_GROUP },
+  {
+    name: 'batch',
+    label: 'Đợt',
+    required: true,
+    placeholder: 'VD: 1',
+    group: PAYMENT_GROUP,
+  },
+  {
+    name: 'cardCount',
+    label: 'Số thẻ/người',
+    type: 'number',
+    required: true,
+    min: 0,
+    defaultValue: 0,
+    group: PAYMENT_GROUP,
+  },
+  {
+    name: 'rejectedCardCount',
+    label: 'Số thẻ không cấp',
+    type: 'number',
+    required: true,
+    min: 0,
+    defaultValue: 0,
+    hint: 'Số thẻ cơ quan BHXH không cấp trong đợt này.',
+    group: PAYMENT_GROUP,
+  },
+  {
+    name: 'listedAmount',
+    label: 'Số tiền DS',
+    type: 'number',
+    required: true,
+    min: 0,
+    step: 1000,
+    defaultValue: 0,
+    hint: 'Tổng tiền theo danh sách kê khai.',
+    group: PAYMENT_GROUP,
+  },
+  {
+    name: 'amount',
+    label: 'Số tiền nộp',
+    type: 'number',
+    min: 0,
+    step: 1000,
+    defaultValue: 0,
+    hint: 'Số tiền đại lý thực nộp.',
+    group: PAYMENT_GROUP,
+  },
+  {
+    name: 'diffAmount',
+    label: 'Số tiền chênh lệch',
+    type: 'number',
+    step: 1000,
+    hint: 'Số tiền nộp trừ số tiền danh sách.',
+    group: PAYMENT_GROUP,
+  },
+  {
+    name: 'paidAt',
+    label: 'Ngày nộp tiền',
+    type: 'date',
+    defaultValue: todayISO(),
+    group: PAYMENT_GROUP,
+  },
+  { name: 'dossierCode', label: 'Mã hồ sơ', placeholder: 'VD: HS0001', group: PAYMENT_GROUP },
+  /*
+   * Cùng trường với cột "Đính kèm" trong bảng, chỉ khác cách nhập: bảng lưu
+   * chuỗi `attached`/`missing`, ô nhập là một checkbox. Khai `checkedValue` để
+   * hai chỗ nói về một trường, không sinh thêm cột `attached` song song.
+   */
+  {
+    name: 'attachmentStatus',
+    label: 'Đã đính kèm',
+    type: 'checkbox',
+    checkedValue: 'attached',
+    uncheckedValue: 'missing',
+    group: PAYMENT_GROUP,
+  },
+  { name: 'signed', label: 'Ký tên', type: 'toggle', group: PAYMENT_GROUP },
+  {
+    name: 'note',
+    label: 'Ghi chú',
+    type: 'textarea',
+    rows: 3,
+    placeholder: 'Ghi chú thêm về phiếu nộp tiền…',
+    colSpan: 'full',
+    group: PAYMENT_GROUP,
+  },
 ];
 
 /** Phiếu nộp tiền của đại lý về cơ quan BHXH. */
@@ -327,6 +455,9 @@ export function PaymentsPage() {
       createLabel="Tạo mới Quản lý nộp tiền"
       rowLabel={(row) => row.code}
       formFields={PAYMENT_FIELDS}
+      // Bốn cột số liệu trên một hàng cần hộp thoại rộng hơn khổ mặc định
+      formColumns={4}
+      formSize="3xl"
       filterFields={filterFields}
       emptyDescription="Bắt đầu tạo dữ liệu mới"
       toolbar={({ exportParams }) => (
@@ -427,12 +558,9 @@ export function ReceiptsPage() {
       searchPlaceholder="Tìm theo số biên lai, người tham gia…"
       filterFields={filterFields}
       emptyDescription="Chưa có biên lai nào khớp điều kiện đang lọc."
-      actions={({ exportParams }) => (
+      actions={({ exportParams, refetch }) => (
         <>
-          <Button variant="secondary" onClick={() => toast.info('Đang kết nối cổng BHXH…')}>
-            <Icon name="building" className="h-4 w-4" />
-            Nhập từ bhxh
-          </Button>
+          <ImportFromBhxhModal onImported={refetch} />
           <ExportButton
             endpoint={`${endpoints.resources.receipts}/export`}
             params={exportParams}
@@ -570,14 +698,59 @@ const RETURN_TABS = {
   ],
 };
 
-/** Các trường của quyển biên lai giao cho đại lý. */
+/**
+ * Các trường của quyển biên lai giao cho đại lý.
+ *
+ * Đại lý chọn từ danh mục thay vì gõ tay: tên gõ sai một dấu là quyển treo lơ
+ * lửng, không thuộc đại lý nào, mà bảng vẫn hiện bình thường.
+ */
 const RECEIPT_BOOK_FIELDS = [
-  { name: 'code', label: 'Số quyển', required: true, placeholder: 'Q0001' },
-  { name: 'agentName', label: 'Đại lý', required: true },
-  { name: 'fromNo', label: 'Từ số biên lai', required: true, placeholder: 'BL0001' },
-  { name: 'toNo', label: 'Đến số biên lai', required: true, placeholder: 'BL0050' },
-  { name: 'issuedAt', label: 'Ngày giao quyển', type: 'date', required: true },
-  { name: 'returnedAt', label: 'Ngày trả biên', type: 'date', hint: 'Để trống nếu chưa trả.' },
+  {
+    name: 'code',
+    label: 'Số quyển',
+    required: true,
+    prefix: '#',
+    placeholder: 'VD: Q0001',
+    group: 'Thông tin quyển biên lai',
+    groupIcon: 'archive',
+  },
+  {
+    name: 'agentName',
+    label: 'Đại lý',
+    required: true,
+    placeholder: 'Chọn đại lý',
+    optionsFrom: { endpoint: endpoints.resources.agents },
+    group: 'Thông tin quyển biên lai',
+  },
+  {
+    name: 'fromNo',
+    label: 'Từ số biên lai',
+    required: true,
+    placeholder: 'VD: BL0001',
+    group: 'Thông tin quyển biên lai',
+  },
+  {
+    name: 'toNo',
+    label: 'Đến số biên lai',
+    required: true,
+    placeholder: 'VD: BL0050',
+    group: 'Thông tin quyển biên lai',
+  },
+  {
+    name: 'issuedAt',
+    label: 'Ngày giao quyển',
+    type: 'date',
+    required: true,
+    defaultValue: todayISO(),
+    group: 'Thông tin quyển biên lai',
+  },
+  {
+    name: 'returnedAt',
+    label: 'Ngày trả biên',
+    type: 'date',
+    hint: 'Để trống nếu chưa trả.',
+    group: 'Thông tin quyển biên lai',
+  },
 ];
 
 /**
@@ -730,27 +903,100 @@ export function ReceiptBooksPage() {
   );
 }
 
-/** Các trường của đại lý thu. */
+/**
+ * Các trường của đại lý thu, chia ba khối theo việc chúng nói về cái gì: đại lý
+ * là ai, liên hệ thế nào, và quản lý địa bàn nào. Mười một ô trong một lưới
+ * phẳng thì không biết ô nào đi với ô nào.
+ */
 const AGENT_FIELDS = [
-  { name: 'code', label: 'Mã đại lý', required: true, placeholder: 'DL0001' },
-  { name: 'name', label: 'Tên đại lý', required: true },
+  {
+    name: 'code',
+    label: 'Mã đại lý',
+    required: true,
+    prefix: '#',
+    placeholder: 'VD: DL0001',
+    group: 'Thông tin đại lý',
+    groupIcon: 'users',
+  },
+  {
+    name: 'name',
+    label: 'Tên đại lý',
+    required: true,
+    prefixIcon: 'users',
+    placeholder: 'VD: Đại lý Bưu điện Q1',
+    group: 'Thông tin đại lý',
+  },
   {
     name: 'officialName',
     label: 'Tên đại lý chính thức',
     colSpan: 2,
+    placeholder: 'VD: Đại lý Bưu điện Q1 - Huyện An Biên',
     hint: 'Tên ghi trên quyết định uỷ quyền, dùng khi in biên bản.',
+    group: 'Thông tin đại lý',
   },
-  { name: 'email', label: 'E-mail', type: 'email', placeholder: 'daily001@happylee.vn' },
-  { name: 'phone', label: 'Điện thoại', type: 'tel', placeholder: '0901234567' },
-  { name: 'bhytCode', label: 'Mã BHYT', placeholder: 'YT10450' },
-  { name: 'bhxhCode', label: 'Mã BHXH', placeholder: 'XH20310' },
-  { name: 'provinceName', label: 'Tỉnh/thành' },
-  { name: 'districtName', label: 'Quận/huyện' },
-  { name: 'wardName', label: 'Xã/phường quản lý (mới)' },
   {
+    name: 'bhytCode',
+    label: 'Mã BHYT',
+    placeholder: 'VD: YT10450',
+    hint: 'Mã đơn vị khai báo với cơ quan BHXH.',
+    group: 'Thông tin đại lý',
+  },
+  {
+    name: 'bhxhCode',
+    label: 'Mã BHXH',
+    placeholder: 'VD: XH20310',
+    group: 'Thông tin đại lý',
+  },
+  {
+    name: 'email',
+    label: 'E-mail',
+    type: 'email',
+    prefixIcon: 'mail',
+    placeholder: 'daily001@happylee.vn',
+    group: 'Thông tin liên hệ',
+    groupIcon: 'mail',
+  },
+  {
+    name: 'phone',
+    label: 'Điện thoại',
+    type: 'tel',
+    placeholder: '0901234567',
+    group: 'Thông tin liên hệ',
+  },
+  {
+    name: 'provinceName',
+    label: 'Tỉnh/Thành phố',
+    placeholder: 'Chọn tỉnh/thành phố',
+    optionsFrom: { endpoint: endpoints.resources.provinces },
+    clearable: true,
+    hint: 'Chọn tỉnh/thành phố trước.',
+    group: 'Địa bàn quản lý',
+    groupIcon: 'map',
+  },
+  {
+    name: 'districtName',
+    label: 'Quận/Huyện',
+    placeholder: 'Chọn quận/huyện',
+    optionsFrom: { endpoint: endpoints.resources.districts, dependsOn: 'provinceName' },
+    clearable: true,
+    group: 'Địa bàn quản lý',
+  },
+  {
+    name: 'wardName',
+    label: 'Xã/phường quản lý (mới)',
+    placeholder: 'Chọn xã/phường',
+    optionsFrom: { endpoint: endpoints.resources.wards, dependsOn: 'provinceName' },
+    clearable: true,
+    group: 'Địa bàn quản lý',
+  },
+  {
+    // Tên cũ gõ tay, không chọn từ danh mục: xã cũ đã bị xoá khỏi danh mục sau
+    // sáp nhập nên không có gì để chọn, nhưng hồ sơ đã nộp vẫn ghi tên đó
     name: 'oldWardName',
     label: 'Xã/phường (cũ)',
+    placeholder: 'VD: Xã Vĩnh Hoà',
     hint: 'Tên trước sáp nhập, giữ để tra hồ sơ đã nộp.',
+    group: 'Địa bàn quản lý',
   },
   // Không đưa `isActive` và `eReceiptEnabled` vào form: hai cột trên bảng đã có
   // công tắc bật/tắt, sửa ngay tại dòng nhanh hơn mở hộp thoại
@@ -1074,14 +1320,31 @@ export function PermissionsPage() {
 
 /** Các trường của vai trò. */
 const ROLE_FIELDS = [
-  { name: 'name', label: 'Tên vai trò', required: true, placeholder: 'Nhân viên đại lý' },
+  {
+    name: 'name',
+    label: 'Tên vai trò',
+    required: true,
+    prefixIcon: 'shield',
+    placeholder: 'VD: Nhân viên đại lý',
+    group: 'Thông tin vai trò',
+    groupIcon: 'shield',
+  },
   {
     name: 'guardName',
     label: 'Tên guard',
     defaultValue: 'web',
     hint: 'Mặc định `web` — đổi khi vai trò dùng cho API riêng.',
+    group: 'Thông tin vai trò',
   },
-  { name: 'description', label: 'Mô tả', colSpan: 2 },
+  {
+    name: 'description',
+    label: 'Mô tả',
+    type: 'textarea',
+    rows: 2,
+    colSpan: 'full',
+    placeholder: 'VD: Xem và nhập biên lai của đại lý mình phụ trách',
+    group: 'Thông tin vai trò',
+  },
 ];
 
 /** Vai trò và số quyền/số người dùng đang gán. */

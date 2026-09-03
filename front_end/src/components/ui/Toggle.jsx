@@ -8,14 +8,23 @@ import Spinner from './Spinner';
  * lại để không tạo hai request trái ngược nhau.
  *
  * @param {{ checked: boolean, onChange: (next: boolean) => void,
- *           loading?: boolean, disabled?: boolean, label?: string }} props
+ *           loading?: boolean, disabled?: boolean, label?: string,
+ *           id?: string }} props
  */
-export default function Toggle({ checked, onChange, loading = false, disabled = false, label }) {
+export default function Toggle({
+  checked,
+  onChange,
+  loading = false,
+  disabled = false,
+  label,
+  id,
+}) {
   const locked = disabled || loading;
 
   return (
     <button
       type="button"
+      id={id}
       role="switch"
       aria-checked={checked}
       aria-label={label}

@@ -352,6 +352,37 @@ function route(config) {
   const reportMatch = path.match(/^\/reports\/(d03|ar|d05)$/);
   if (reportMatch && method === 'get') return respond(config, paginate(path, params));
 
+  /*
+   * Nhận một dải số biên lai từ cổng BHXH. Tạo thật từng biên lai trong dải để
+   * bảng phía sau hiện đúng số dòng vừa nhận — trả về một con số suông thì toast
+   * báo thành công mà danh sách y nguyên, đúng cái lỗi khó thấy nhất ở đây.
+   */
+  if (path === '/receipts/import-bhxh' && method === 'post') {
+    const body = bodyOf(config);
+    const from = Number(body.fromNo);
+    const to = Number(body.toNo);
+
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from > to) {
+      return reject(config, 422, {
+        message: 'Dải số biên lai không hợp lệ.',
+        errors: { range: ['Số bắt đầu phải nhỏ hơn hoặc bằng số kết thúc.'] },
+      });
+    }
+
+    for (let no = from; no <= to; no += 1) {
+      createRow('/receipts', {
+        receiptNo: `BL${String(no).padStart(6, '0')}`,
+        bookNo: body.bookNo,
+        agentName: body.agentName,
+        receiptType: body.receiptType,
+        status: 'draft',
+        issuedAt: new Date().toISOString(),
+      });
+    }
+
+    return respond(config, { imported: to - from + 1, from, to }, 201);
+  }
+
   if (path.endsWith('/import')) {
     return respond(config, {
       total: 142,
