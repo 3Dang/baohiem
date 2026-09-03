@@ -56,11 +56,59 @@ const statusColumn = (endpoint) => ({
   render: (row) => <ToggleCell endpoint={endpoint} row={row} field="isActive" />,
 });
 
-/** Hai field mọi danh mục đều có; danh mục nào cần thêm thì nối vào sau. */
-const baseFields = (nameLabel = 'Tên') => [
-  { name: 'code', label: 'Mã', required: true },
-  { name: 'name', label: nameLabel, required: true },
+/**
+ * Hai field mọi danh mục đều có, đặt trong một khối có tiêu đề như hệ thống cũ.
+ *
+ * Ô mã mang tiền tố "#" và ô tên mang biểu tượng của chính danh mục: hai ô cùng
+ * độ dài nằm cạnh nhau rất dễ điền lẫn, còn `placeholder` dạng "VD: …" nói ngay
+ * định dạng mong đợi thay vì để người dùng gõ thử rồi nhận lỗi 422.
+ *
+ * @param {{ group: string, groupIcon?: string, groupCollapsible?: boolean,
+ *           code: { label?: string, placeholder: string, hint?: string },
+ *           name: { label: string, icon?: string, placeholder: string, hint?: string } }} config
+ */
+const identityFields = ({ group, groupIcon, groupCollapsible, code, name }) => [
+  {
+    name: 'code',
+    label: code.label ?? 'Mã',
+    required: true,
+    prefix: '#',
+    placeholder: code.placeholder,
+    hint: code.hint,
+    group,
+    groupIcon,
+    groupCollapsible,
+  },
+  {
+    name: 'name',
+    label: name.label,
+    required: true,
+    prefixIcon: name.icon,
+    placeholder: name.placeholder,
+    hint: name.hint,
+    group,
+    colSpan: name.colSpan,
+  },
 ];
+
+/**
+ * Ô chọn đơn vị hành chính cha, nạp từ chính danh mục của đơn vị đó.
+ *
+ * Phải là ô chọn chứ không phải ô gõ tay: tên đơn vị lưu thành chuỗi nên gõ sai
+ * một dấu là bản ghi con treo lơ lửng, không thuộc đơn vị nào cả — mà bảng vẫn
+ * hiện bình thường nên rất lâu sau mới phát hiện.
+ *
+ * `dependsOn` là ô chọn phụ thuộc: chưa chọn cha thì ô con khoá lại và chỉ nạp
+ * danh sách thuộc đơn vị cha đó.
+ */
+const parentField = (name, label, { endpoint, dependsOn, ...overrides }) => ({
+  name,
+  label,
+  required: true,
+  placeholder: `Chọn ${label.toLowerCase()}`,
+  optionsFrom: { endpoint, dependsOn },
+  ...overrides,
+});
 
 /** Menu "Thao tác" cho danh mục nhiều cột: để liên kết rời sẽ làm bảng quá rộng. */
 const ROW_MENU = [
@@ -83,7 +131,17 @@ const CATALOGS = {
     excelImport: true,
     perPage: 50,
     columns: [codeColumn(), nameColumn('Tên tỉnh/thành phố'), createdAtColumn],
-    formFields: baseFields('Tên tỉnh/thành phố'),
+    formFields: identityFields({
+      group: 'Thông tin tỉnh/thành phố',
+      groupIcon: 'building',
+      groupCollapsible: true,
+      code: { placeholder: 'VD: HCM, HN, DN' },
+      name: {
+        label: 'Tên tỉnh/thành phố',
+        icon: 'building',
+        placeholder: 'VD: TP. Hồ Chí Minh, Hà Nội, Đà Nẵng',
+      },
+    }),
   },
   districts: {
     title: 'Danh mục quận/huyện',
@@ -98,7 +156,19 @@ const CATALOGS = {
       countColumn('wardsCount', 'Số phường/xã'),
       createdAtColumn,
     ],
-    formFields: [...baseFields('Tên quận/huyện'), { name: 'provinceName', label: 'Tỉnh/thành' }],
+    formFields: [
+      ...identityFields({
+        group: 'Thông tin quận/huyện',
+        groupIcon: 'building',
+        code: { placeholder: 'VD: 785, 786' },
+        name: { label: 'Tên quận/huyện', icon: 'building', placeholder: 'VD: Huyện An Biên' },
+      }),
+      parentField('provinceName', 'Tỉnh/Thành phố', {
+        endpoint: endpoints.resources.provinces,
+        group: 'Thông tin quận/huyện',
+        hint: 'Tỉnh/thành phố mà quận/huyện thuộc về.',
+      }),
+    ],
   },
   wards: {
     title: 'Danh mục phường/xã',
@@ -130,9 +200,27 @@ const CATALOGS = {
       createdAtColumn,
     ],
     formFields: [
-      ...baseFields('Tên phường/xã'),
-      { name: 'districtName', label: 'Quận/huyện' },
-      { name: 'provinceName', label: 'Tỉnh/thành' },
+      ...identityFields({
+        group: 'Thông tin phường/xã',
+        groupIcon: 'home',
+        code: { placeholder: 'VD: 00001, 00002', hint: 'Mã định danh duy nhất của phường/xã.' },
+        name: {
+          label: 'Tên phường/xã',
+          icon: 'home',
+          placeholder: 'VD: Phường Ba Đình, Xã An Khánh',
+        },
+      }),
+      parentField('provinceName', 'Tỉnh/Thành phố', {
+        endpoint: endpoints.resources.provinces,
+        group: 'Thông tin phường/xã',
+        hint: 'Chọn tỉnh/thành phố trước.',
+      }),
+      parentField('districtName', 'Quận/Huyện', {
+        endpoint: endpoints.resources.districts,
+        dependsOn: 'provinceName',
+        group: 'Thông tin phường/xã',
+        hint: 'Quận/huyện mà phường/xã thuộc về.',
+      }),
     ],
   },
   hamlets: {
@@ -149,7 +237,34 @@ const CATALOGS = {
       parentColumn('wardName', 'Phường/Xã'),
       createdAtColumn,
     ],
-    formFields: [...baseFields('Tên thôn/ấp'), { name: 'wardName', label: 'Phường/xã' }],
+    formFields: [
+      ...identityFields({
+        group: 'Thông tin thôn/ấp',
+        groupIcon: 'map',
+        code: {
+          label: 'Mã thôn/ấp',
+          placeholder: 'VD: T001, A002',
+          hint: 'Mã định danh duy nhất của thôn/ấp.',
+        },
+        name: {
+          label: 'Tên thôn/ấp',
+          icon: 'map',
+          placeholder: 'VD: Thôn Hòa Bình, Ấp Tân Tiến',
+          hint: 'Tên đầy đủ của thôn/ấp.',
+        },
+      }),
+      parentField('provinceName', 'Tỉnh/Thành phố', {
+        endpoint: endpoints.resources.provinces,
+        group: 'Thông tin thôn/ấp',
+        hint: 'Chọn tỉnh/thành phố trước.',
+      }),
+      parentField('wardName', 'Phường/Xã', {
+        endpoint: endpoints.resources.wards,
+        dependsOn: 'provinceName',
+        group: 'Thông tin thôn/ấp',
+        hint: 'Phường/xã mà thôn/ấp thuộc về.',
+      }),
+    ],
   },
   'medical-facilities': {
     title: 'Danh mục nơi khám chữa bệnh',
@@ -168,13 +283,51 @@ const CATALOGS = {
       createdAtColumn,
     ],
     formFields: [
-      ...baseFields('Tên cơ sở'),
-      { name: 'provinceName', label: 'Tỉnh/thành' },
+      {
+        name: 'code',
+        label: 'Mã cơ sở',
+        required: true,
+        prefix: '#',
+        placeholder: 'VD: BV001, PK002',
+        hint: 'Mã định danh duy nhất của cơ sở y tế.',
+        group: 'Thông tin nơi khám chữa bệnh',
+        groupIcon: 'hospital',
+      },
+      parentField('provinceName', 'Tỉnh/Thành phố', {
+        endpoint: endpoints.resources.provinces,
+        group: 'Thông tin nơi khám chữa bệnh',
+        hint: 'Tỉnh/thành phố nơi cơ sở y tế đặt trụ sở.',
+      }),
+      /*
+       * Sau sáp nhập tỉnh, một cơ sở có hai tên tỉnh: tên trên hồ sơ cũ và tên
+       * hiện hành. Ô này để trống được (cơ sở ở tỉnh không sáp nhập) nên có nút
+       * bỏ chọn — chọn nhầm rồi mà không bỏ được thì phải huỷ cả form.
+       */
+      parentField('newProvinceName', 'Tỉnh/Thành phố (mới)', {
+        endpoint: endpoints.resources.provinces,
+        group: 'Thông tin nơi khám chữa bệnh',
+        required: false,
+        clearable: true,
+        placeholder: 'Chọn tỉnh/thành phố sau sáp nhập',
+        hint: 'Để trống nếu tỉnh/thành phố không thay đổi.',
+      }),
       {
         name: 'level',
         label: 'Tuyến',
         options: ['Trung ương', 'Tỉnh', 'Huyện', 'Xã'].map((value) => ({ value, label: value })),
         placeholder: 'Chọn tuyến',
+        clearable: true,
+        group: 'Thông tin nơi khám chữa bệnh',
+      },
+      {
+        name: 'name',
+        label: 'Tên cơ sở khám chữa bệnh',
+        required: true,
+        prefixIcon: 'hospital',
+        placeholder: 'VD: Bệnh viện Chợ Rẫy, Phòng khám Đa khoa ABC',
+        hint: 'Tên đầy đủ của cơ sở y tế.',
+        colSpan: 'full',
+        group: 'Thông tin nơi khám chữa bệnh',
       },
     ],
   },
@@ -185,7 +338,16 @@ const CATALOGS = {
     endpoint: endpoints.resources.relationships,
     perPage: 50,
     columns: [codeColumn(), nameColumn('Mô tả quan hệ'), createdAtColumn],
-    formFields: baseFields('Tên quan hệ'),
+    formFields: identityFields({
+      group: 'Thông tin quan hệ',
+      groupIcon: 'heart',
+      code: { label: 'Mã quan hệ', placeholder: 'VD: F01, M02' },
+      name: {
+        label: 'Mô tả quan hệ',
+        icon: 'heart',
+        placeholder: 'VD: Cha, Mẹ, Con, Anh/Chị/Em',
+      },
+    }),
   },
   'contribution-levels': {
     title: 'Danh mục mức đóng',
@@ -213,9 +375,45 @@ const CATALOGS = {
       createdAtColumn,
     ],
     formFields: [
-      ...baseFields('Tên mức đóng'),
-      { name: 'amount', label: 'Số tiền', type: 'number', required: true, min: 0, step: 1000 },
-      { name: 'months', label: 'Số tháng', type: 'number', required: true, min: 1 },
+      ...identityFields({
+        group: 'Thông tin mức đóng',
+        groupIcon: 'coin',
+        code: { label: 'Mức đóng', placeholder: 'VD: 40, 50, 4.5' },
+        name: {
+          label: 'Mô tả',
+          icon: 'document',
+          placeholder: 'VD: Người thứ nhất: 100%',
+          colSpan: 2,
+        },
+      }),
+      {
+        name: 'rate',
+        label: 'Tỉ lệ (%)',
+        type: 'number',
+        required: true,
+        min: 0,
+        max: 100,
+        step: 0.5,
+        group: 'Thông tin mức đóng',
+      },
+      {
+        name: 'amount',
+        label: 'Số tiền',
+        type: 'number',
+        required: true,
+        min: 0,
+        step: 1000,
+        hint: 'Đơn vị đồng, nhập số nguyên.',
+        group: 'Thông tin mức đóng',
+      },
+      {
+        name: 'months',
+        label: 'Số tháng',
+        type: 'number',
+        required: true,
+        min: 1,
+        group: 'Thông tin mức đóng',
+      },
     ],
   },
   ethnicities: {
@@ -224,7 +422,12 @@ const CATALOGS = {
     endpoint: endpoints.resources.ethnicities,
     perPage: 50,
     columns: [codeColumn(), nameColumn('Tên dân tộc'), createdAtColumn],
-    formFields: baseFields('Tên dân tộc'),
+    formFields: identityFields({
+      group: 'Thông tin dân tộc',
+      groupIcon: 'flag',
+      code: { placeholder: 'VD: 1, 2, 3' },
+      name: { label: 'Tên dân tộc', icon: 'flag', placeholder: 'VD: Kinh, Tày, Khmer' },
+    }),
   },
 };
 

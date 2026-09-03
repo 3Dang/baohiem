@@ -86,27 +86,74 @@ function useExportFilters({ solutions = true } = {}) {
   );
 }
 
-/** Các trường của một dòng hồ sơ D03 (BHYT hộ gia đình). */
+const GENDER_OPTIONS = [
+  { value: 'Nam', label: 'Nam' },
+  { value: 'Nữ', label: 'Nữ' },
+];
+
+/**
+ * Các trường của một dòng hồ sơ D03 (BHYT hộ gia đình), chia hai khối: người
+ * tham gia là ai, và hồ sơ đóng thế nào. Một hộ có nhiều người nên khối thứ nhất
+ * lặp lại từng dòng, khối thứ hai mới là phần khác nhau giữa các dòng.
+ */
+const D03_PERSON = 'Thông tin người tham gia';
+const D03_PAYMENT = 'Thông tin đóng';
+
 const D03_FIELDS = [
-  { name: 'householdNo', label: 'Mã hộ', required: true, placeholder: '9222771905' },
-  { name: 'insuranceNo', label: 'Mã số BHXH', required: true },
-  { name: 'fullName', label: 'Họ và tên', required: true },
-  { name: 'birthDate', label: 'Ngày sinh', type: 'date', required: true },
+  {
+    name: 'householdNo',
+    label: 'Mã hộ',
+    required: true,
+    prefix: '#',
+    placeholder: 'VD: 9222771905',
+    hint: 'Các dòng cùng mã hộ được gom thành một nhóm khi kết xuất.',
+    group: D03_PERSON,
+    groupIcon: 'users',
+  },
+  {
+    name: 'insuranceNo',
+    label: 'Mã số BHXH',
+    required: true,
+    placeholder: 'VD: 0123456789',
+    group: D03_PERSON,
+  },
+  { name: 'fullName', label: 'Họ và tên', required: true, group: D03_PERSON },
+  { name: 'birthDate', label: 'Ngày sinh', type: 'date', required: true, group: D03_PERSON },
   {
     name: 'gender',
     label: 'Giới tính',
-    options: [
-      { value: 'Nam', label: 'Nam' },
-      { value: 'Nữ', label: 'Nữ' },
-    ],
-    placeholder: 'Chọn',
+    options: GENDER_OPTIONS,
+    placeholder: 'Chọn giới tính',
+    group: D03_PERSON,
   },
-  { name: 'receiptNo', label: 'Số biên lai' },
-  { name: 'rate', label: 'Tỉ lệ đóng (%)', type: 'number', min: 0, max: 100 },
-  { name: 'validFrom', label: 'Ngày giá trị', type: 'date' },
-  { name: 'amount', label: 'Mức đóng', type: 'number', min: 0, step: 1000 },
-  { name: 'facilityName', label: 'Nơi KCB ban đầu', colSpan: 2 },
-  { name: 'address', label: 'Địa chỉ', colSpan: 2 },
+  { name: 'address', label: 'Địa chỉ', colSpan: 2, group: D03_PERSON },
+  { name: 'receiptNo', label: 'Số biên lai', group: D03_PAYMENT, groupIcon: 'receipt' },
+  {
+    name: 'rate',
+    label: 'Tỉ lệ đóng (%)',
+    type: 'number',
+    min: 0,
+    max: 100,
+    group: D03_PAYMENT,
+  },
+  { name: 'validFrom', label: 'Ngày giá trị', type: 'date', group: D03_PAYMENT },
+  {
+    name: 'amount',
+    label: 'Mức đóng',
+    type: 'number',
+    min: 0,
+    step: 1000,
+    group: D03_PAYMENT,
+  },
+  {
+    name: 'facilityName',
+    label: 'Nơi KCB ban đầu',
+    placeholder: 'Chọn cơ sở khám chữa bệnh',
+    optionsFrom: { endpoint: endpoints.resources.medicalFacilities },
+    clearable: true,
+    colSpan: 2,
+    group: D03_PAYMENT,
+  },
 ];
 
 /** Người tham gia trong hộ: tên, ngày sinh và giới tính đọc cùng một mạch. */
@@ -306,8 +353,15 @@ export function D03ExportPage() {
 
 /** Các trường của hồ sơ điều chỉnh AR. */
 const AR_FIELDS = [
-  { name: 'insuranceNo', label: 'Mã số BHXH', required: true },
-  { name: 'fullName', label: 'Họ và tên', required: true },
+  {
+    name: 'insuranceNo',
+    label: 'Mã số BHXH',
+    required: true,
+    placeholder: 'VD: 0123456789',
+    group: 'Thông tin điều chỉnh',
+    groupIcon: 'refresh',
+  },
+  { name: 'fullName', label: 'Họ và tên', required: true, group: 'Thông tin điều chỉnh' },
   {
     name: 'changeType',
     label: 'Loại điều chỉnh',
@@ -315,12 +369,34 @@ const AR_FIELDS = [
       value,
       label: value,
     })),
-    placeholder: 'Chọn loại',
+    placeholder: 'Chọn loại điều chỉnh',
     required: true,
+    group: 'Thông tin điều chỉnh',
   },
-  { name: 'amount', label: 'Số tiền', type: 'number', min: 0, step: 1000 },
-  { name: 'wardName', label: 'Phường/xã' },
-  { name: 'agentName', label: 'Đại lý' },
+  {
+    name: 'amount',
+    label: 'Số tiền',
+    type: 'number',
+    min: 0,
+    step: 1000,
+    group: 'Thông tin điều chỉnh',
+  },
+  {
+    name: 'wardName',
+    label: 'Phường/xã',
+    placeholder: 'Chọn phường/xã',
+    optionsFrom: { endpoint: endpoints.resources.wards },
+    clearable: true,
+    group: 'Thông tin điều chỉnh',
+  },
+  {
+    name: 'agentName',
+    label: 'Đại lý',
+    placeholder: 'Chọn đại lý',
+    optionsFrom: { endpoint: endpoints.resources.agents },
+    clearable: true,
+    group: 'Thông tin điều chỉnh',
+  },
 ];
 
 /** Cột dùng chung cho hai trang AR: chỉ khác nút hành động ở đầu trang. */
@@ -419,18 +495,58 @@ export function ARExportPage() {
 
 /** Các trường của hồ sơ D05 (BHXH tự nguyện). */
 const D05_FIELDS = [
-  { name: 'fullName', label: 'Họ và tên', required: true },
-  { name: 'idNo', label: 'CCCD/CMND', required: true, placeholder: '092081012936' },
-  { name: 'insuranceNo', label: 'Mã số BHXH', hint: 'Để trống nếu người này chưa có mã.' },
-  { name: 'birthDate', label: 'Ngày sinh', type: 'date', required: true },
-  { name: 'wardName', label: 'Phường/xã (mới)' },
-  { name: 'provinceName', label: 'Tỉnh/thành phố (mới)' },
+  {
+    name: 'fullName',
+    label: 'Họ và tên',
+    required: true,
+    group: 'Thông tin người tham gia',
+    groupIcon: 'user',
+  },
+  {
+    name: 'idNo',
+    label: 'CCCD/CMND',
+    required: true,
+    placeholder: 'VD: 092081012936',
+    group: 'Thông tin người tham gia',
+  },
+  {
+    name: 'insuranceNo',
+    label: 'Mã số BHXH',
+    hint: 'Để trống nếu người này chưa có mã.',
+    group: 'Thông tin người tham gia',
+  },
+  {
+    name: 'birthDate',
+    label: 'Ngày sinh',
+    type: 'date',
+    required: true,
+    group: 'Thông tin người tham gia',
+  },
+  {
+    name: 'provinceName',
+    label: 'Tỉnh/thành phố (mới)',
+    placeholder: 'Chọn tỉnh/thành phố',
+    optionsFrom: { endpoint: endpoints.resources.provinces },
+    clearable: true,
+    hint: 'Chọn tỉnh/thành phố trước.',
+    group: 'Thông tin người tham gia',
+  },
+  {
+    name: 'wardName',
+    label: 'Phường/xã (mới)',
+    placeholder: 'Chọn phường/xã',
+    optionsFrom: { endpoint: endpoints.resources.wards, dependsOn: 'provinceName' },
+    clearable: true,
+    group: 'Thông tin người tham gia',
+  },
   {
     name: 'salaryBase',
     label: 'Mức lương làm căn cứ',
     type: 'number',
     min: 0,
     step: 100000,
+    hint: 'Đơn vị đồng, dùng để tính mức đóng BHXH tự nguyện.',
+    group: 'Thông tin người tham gia',
   },
 ];
 
